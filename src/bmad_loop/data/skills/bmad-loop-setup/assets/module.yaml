@@ -6,7 +6,7 @@ default_selected: false
 module_greeting: >
   BMAD Loop installed — both the automation skills and the
   bmad-loop orchestrator tool (the Python program that drives the loop). Setup
-  installed the `bmad-loop` package from its Git repository with
+  installed the `bmad-loop` package from the `orvexai/bmad-loop` fork with
   `uv tool install`, ran `bmad-loop init` (skills + hooks + policy + gitignore),
   and `bmad-loop validate`
   (preflight). The skills

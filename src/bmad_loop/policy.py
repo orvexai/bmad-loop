@@ -251,9 +251,10 @@ class StoriesPolicy:
     ``sprint-status.yaml``. ``spec_folder`` is the project-relative (or absolute)
     path to the epic's spec folder; required and must parse when
     ``source = "stories"``. There is deliberately **no** ``continue_independent``
-    knob — the manifest is strictly serial (no ``depends_on``), so a blocked
-    story always pauses the run for resolve rather than leapfrogging to later
-    work."""
+    knob — bmad-loop's execution projection remains serial even when the
+    manifest exposes dependency metadata to an external wave orchestrator, so
+    a blocked story always pauses the loop for resolve rather than leapfrogging
+    to later work."""
 
     source: str = "sprint-status"
     spec_folder: str = ""

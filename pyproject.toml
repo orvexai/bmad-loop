@@ -24,6 +24,12 @@ dependencies = [
   "psutil>=7.2.2; sys_platform == 'win32'",
 ]
 
+[project.urls]
+Homepage = "https://github.com/orvexai/bmad-loop"
+Repository = "https://github.com/orvexai/bmad-loop"
+Issues = "https://github.com/orvexai/bmad-loop/issues"
+Changelog = "https://github.com/orvexai/bmad-loop/blob/main/CHANGELOG.md"
+
 [project.scripts]
 bmad-loop = "bmad_loop.cli:main"
 

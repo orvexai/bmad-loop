@@ -108,7 +108,7 @@ is the entire setup — the new backend simply appears in `bmad-loop mux`, selec
 persistable like a bundled one. With bmad-loop installed as a `uv` tool:
 
 ```bash
-uv tool install "bmad-loop @ git+https://github.com/bmad-code-org/bmad-loop.git" \
+uv tool install "bmad-loop @ git+https://github.com/orvexai/bmad-loop.git" \
   --with "<adapter package or git URL>"
 bmad-loop mux            # the new backend's row appears
 bmad-loop mux set <name> # persist for this machine

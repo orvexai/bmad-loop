@@ -374,7 +374,7 @@ them to `0`) — the panes return to their default proportions.
 `r` opens the **start run** modal — all fields optional:
 
 - **source** — `sprint mode` (walks `sprint-status.yaml`) or `stories mode` (folder+id dispatch), prefilled from `[stories]`
-- **spec folder** — stories mode only: the epic spec folder holding `stories.yaml` + `SPEC.md`; feeds a live **schedule preview** that validates the manifest and lists the linear schedule with `[spec/done]` checkpoint markers and each story's live disk state
+- **spec folder** — stories mode only: the epic spec folder holding `stories.yaml` + `SPEC.md`; feeds a live **schedule preview** that validates the manifest (including dependency/concurrency declarations) and lists bmad-loop's serial schedule with `[spec/done]` checkpoint markers and each story's live disk state
 - **epic** — integer, restrict to one epic (sprint mode); blank = all
 - **story key** — restrict to one story; a story id in stories mode; blank = all
 - **max stories** — stop after N stories; blank = no limit

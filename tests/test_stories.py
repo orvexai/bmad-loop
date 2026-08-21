@@ -38,13 +38,16 @@ def test_load_dogfooded_fixture():
     s = stories.load_stories(FIXTURES)
     assert [e.id for e in s.entries] == ["1", "2", "3", "4", "5"]
     by_id = {e.id: e for e in s.entries}
-    # independent checkpoint bools, verbatim invoke_dev_with, no depends_on field
+    # independent checkpoint bools, verbatim invoke_dev_with, legacy-safe scheduling defaults
     assert by_id["1"].spec_checkpoint is True and by_id["1"].done_checkpoint is False
     assert by_id["2"].spec_checkpoint is True
     assert "deliberately-minimal-change" in by_id["2"].invoke_dev_with
     assert by_id["3"].spec_checkpoint is False and by_id["3"].invoke_dev_with == ""
     assert by_id["5"].done_checkpoint is True and by_id["5"].spec_checkpoint is False
-    assert not hasattr(by_id["1"], "depends_on")
+    assert by_id["1"].depends_on == ()
+    assert by_id["1"].parallel_safe is False
+    assert by_id["1"].write_set == ()
+    assert by_id["1"].exclusive_resources == ()
 
 
 def test_load_missing_file_raises_pinned_message(tmp_path):
@@ -218,6 +221,64 @@ def test_checkpoint_non_bool_rejected(tmp_path):
     # `spec_checkpoint: 1` is an int, not a bool — strict, no truthy coercion.
     write_stories(tmp_path, '- id: "1"\n  title: t\n  description: d\n  spec_checkpoint: 1\n')
     with pytest.raises(stories.StoriesError, match="must be a boolean"):
+        stories.load_stories(tmp_path)
+
+
+def test_dependency_and_concurrency_metadata_parses(tmp_path):
+    write_stories(
+        tmp_path,
+        '- id: "1"\n  title: base\n  description: d\n'
+        '- id: "2"\n  title: api\n  description: d\n'
+        '  depends_on: ["1"]\n  parallel_safe: true\n'
+        '  write_set: ["src/api/**", "tests/api/**"]\n'
+        '  exclusive_resources: ["api-schema"]\n',
+    )
+    entry = stories.load_stories(tmp_path).entries[1]
+    assert entry.depends_on == ("1",)
+    assert entry.parallel_safe is True
+    assert entry.write_set == ("src/api/**", "tests/api/**")
+    assert entry.exclusive_resources == ("api-schema",)
+
+
+@pytest.mark.parametrize(
+    ("manifest", "message"),
+    [
+        (
+            '- id: "1"\n  title: a\n  description: d\n'
+            '- id: "2"\n  title: b\n  description: d\n  depends_on: ["missing"]\n',
+            "depends on unknown story",
+        ),
+        (
+            '- id: "1"\n  title: a\n  description: d\n  depends_on: ["2"]\n'
+            '- id: "2"\n  title: b\n  description: d\n',
+            "must name an earlier entry",
+        ),
+        (
+            '- id: "1"\n  title: a\n  description: d\n  depends_on: ["1"]\n',
+            "must name an earlier entry",
+        ),
+        (
+            '- id: "1"\n  title: a\n  description: d\n  parallel_safe: true\n',
+            "has no write_set",
+        ),
+        (
+            '- id: "1"\n  title: a\n  description: d\n  parallel_safe: true\n'
+            '  write_set: ["src/**"]\n  done_checkpoint: true\n',
+            "cannot combine parallel_safe with a checkpoint",
+        ),
+        (
+            '- id: "1"\n  title: a\n  description: d\n  write_set: ["../outside/**"]\n',
+            "unsafe repo-relative glob",
+        ),
+        (
+            '- id: "1"\n  title: a\n  description: d\n  exclusive_resources: ["bad resource"]\n',
+            "invalid resource id",
+        ),
+    ],
+)
+def test_invalid_dependency_or_concurrency_metadata_rejected(tmp_path, manifest, message):
+    write_stories(tmp_path, manifest)
+    with pytest.raises(stories.StoriesError, match=message):
         stories.load_stories(tmp_path)
 
 

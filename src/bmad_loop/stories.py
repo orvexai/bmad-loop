@@ -2,14 +2,16 @@
 
 The optional Story Breakdown step of `bmad-spec` emits ``stories.yaml``, a
 fixed-name sibling of ``SPEC.md`` in the spec folder (discovered by name, never
-referenced from frontmatter). It is a flat list, one entry per story, in strict
-execution order — **there is no ``depends_on`` field**, so the schedule is a
-single left-to-right scan, not a DAG. Each entry pins a stable, prefix-free,
-machine-opaque ``id`` plus ``title``/``description`` and the caller-only knobs
-``spec_checkpoint`` / ``done_checkpoint`` / ``invoke_dev_with`` /
-``closes_deferred``. ``status`` is deliberately absent: bmad-spec is the sole
-writer of ``stories.yaml`` and bmad-build-auto is the sole writer of each story
-spec's status — the orchestrator writes neither.
+referenced from frontmatter). It is a stable topologically ordered list. The
+loop still executes that list with a single left-to-right scan, while external
+orchestrators may use the validated ``depends_on`` / ``parallel_safe`` /
+``write_set`` / ``exclusive_resources`` scheduling declarations. Each entry
+also pins a stable, prefix-free, machine-opaque ``id`` plus
+``title``/``description`` and the caller-only knobs ``spec_checkpoint`` /
+``done_checkpoint`` / ``invoke_dev_with`` / ``closes_deferred``. ``status`` is
+deliberately absent: bmad-spec is the sole writer of ``stories.yaml`` and
+bmad-build-auto is the sole writer of each story spec's status — the
+orchestrator writes neither.
 
 This module is the strict, typed parser the orchestrator reads it through. The
 upstream schema (validity rule 4) already says ids are quoted strings of
@@ -40,6 +42,7 @@ STORIES_SUBDIR = "stories"
 # upstream authoring rule exactly — ids become filename segments and task keys,
 # so a stray character must fail loud, not slip into a path.
 ID_RE = re.compile(r"^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$")
+RESOURCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 
 REQUIRED_FIELDS = ("id", "title", "description")
 
@@ -97,6 +100,10 @@ class StoryEntry:
     id: str
     title: str
     description: str
+    depends_on: tuple[str, ...] = ()
+    parallel_safe: bool = False
+    write_set: tuple[str, ...] = ()
+    exclusive_resources: tuple[str, ...] = ()
     spec_checkpoint: bool = False
     done_checkpoint: bool = False
     invoke_dev_with: str = ""
@@ -117,10 +124,12 @@ def load_stories(spec_folder: Path | str) -> Stories:
     """Parse + validate ``<spec-folder>/stories.yaml`` into a typed :class:`Stories`.
 
     Validates: required fields present, ids unique and prefix-free, no ``status``
-    key, id charset. Ids are ``str()``-normalized before validation (int/float
+    key, id charset, backward-only dependency references, and concurrency
+    declarations. Ids are ``str()``-normalized before validation (int/float
     coercion defense). Raises :class:`StoriesError` with the pinned
-    ``no stories.yaml found`` message when the file is absent. **No DAG / cycle
-    validation** — the list is strictly linear.
+    ``no stories.yaml found`` message when the file is absent. Earlier-only
+    dependencies make the list a valid topological order and cycles impossible;
+    the loop's own execution policy remains deliberately serial.
     """
     path = Path(spec_folder) / STORIES_FILENAME
     if not path.is_file():
@@ -173,6 +182,7 @@ def load_stories(spec_folder: Path | str) -> Stories:
         seen_folded[folded] = entry.id
         entries.append(entry)
     _validate_prefix_free([e.id for e in entries])
+    _validate_dependencies(entries)
     return Stories(path=path, entries=tuple(entries))
 
 
@@ -185,15 +195,28 @@ def _parse_entry(raw: object, index: int) -> StoryEntry:
             "status lives in its story spec, never in stories.yaml"
         )
     story_id = _parse_id(raw, index)
-    return StoryEntry(
+    entry = StoryEntry(
         id=story_id,
         title=_require_text(raw, "title", story_id),
         description=_require_text(raw, "description", story_id),
+        depends_on=_story_id_list_field(raw, "depends_on", story_id),
+        parallel_safe=_bool_field(raw, "parallel_safe", story_id),
+        write_set=_write_set_field(raw, "write_set", story_id),
+        exclusive_resources=_resource_list_field(raw, "exclusive_resources", story_id),
         spec_checkpoint=_bool_field(raw, "spec_checkpoint", story_id),
         done_checkpoint=_bool_field(raw, "done_checkpoint", story_id),
         invoke_dev_with=_text_field(raw, "invoke_dev_with", story_id),
         closes_deferred=_id_list_field(raw, "closes_deferred", story_id),
     )
+    if entry.parallel_safe and not entry.write_set:
+        raise StoriesError(
+            f"stories.yaml story {story_id!r} sets parallel_safe but has no write_set"
+        )
+    if entry.parallel_safe and (entry.spec_checkpoint or entry.done_checkpoint):
+        raise StoriesError(
+            f"stories.yaml story {story_id!r} cannot combine parallel_safe with a checkpoint"
+        )
+    return entry
 
 
 def _parse_id(raw: dict, index: int) -> str:
@@ -267,6 +290,84 @@ def _id_list_field(raw: dict, key: str, story_id: str) -> tuple[str, ...]:
     if error:
         raise StoriesError(f"stories.yaml story {story_id!r} field {key!r} {error}")
     return ids
+
+
+def _strict_string_list_field(raw: dict, key: str, story_id: str) -> tuple[str, ...]:
+    """Read an optional list of unique, non-empty strings without coercion."""
+    value = raw.get(key)
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise StoriesError(
+            f"stories.yaml story {story_id!r} field {key!r} must be a list of strings"
+        )
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            raise StoriesError(
+                f"stories.yaml story {story_id!r} field {key!r} must contain non-empty strings"
+            )
+        normalized = item.strip()
+        if normalized in seen:
+            raise StoriesError(
+                f"stories.yaml story {story_id!r} field {key!r} contains duplicate {normalized!r}"
+            )
+        seen.add(normalized)
+        result.append(normalized)
+    return tuple(result)
+
+
+def _story_id_list_field(raw: dict, key: str, story_id: str) -> tuple[str, ...]:
+    values = _strict_string_list_field(raw, key, story_id)
+    for value in values:
+        if not ID_RE.fullmatch(value):
+            raise StoriesError(
+                f"stories.yaml story {story_id!r} field {key!r} contains invalid story id {value!r}"
+            )
+    return values
+
+
+def _write_set_field(raw: dict, key: str, story_id: str) -> tuple[str, ...]:
+    values = _strict_string_list_field(raw, key, story_id)
+    for value in values:
+        parts = value.split("/")
+        if (
+            value.startswith("/")
+            or re.match(r"^[A-Za-z]:", value)
+            or "\\" in value
+            or any(part in ("", ".", "..") for part in parts)
+            or parts[0] == ".git"
+        ):
+            raise StoriesError(
+                f"stories.yaml story {story_id!r} field {key!r} contains unsafe repo-relative glob {value!r}"
+            )
+    return values
+
+
+def _resource_list_field(raw: dict, key: str, story_id: str) -> tuple[str, ...]:
+    values = _strict_string_list_field(raw, key, story_id)
+    for value in values:
+        if not RESOURCE_ID_RE.fullmatch(value):
+            raise StoriesError(
+                f"stories.yaml story {story_id!r} field {key!r} contains invalid resource id {value!r}"
+            )
+    return values
+
+
+def _validate_dependencies(entries: list[StoryEntry]) -> None:
+    """Require every hard dependency to name an earlier entry exactly."""
+    positions = {entry.id: index for index, entry in enumerate(entries)}
+    for index, entry in enumerate(entries):
+        for dependency in entry.depends_on:
+            if dependency not in positions:
+                raise StoriesError(
+                    f"stories.yaml story {entry.id!r} depends on unknown story {dependency!r}"
+                )
+            if positions[dependency] >= index:
+                raise StoriesError(
+                    f"stories.yaml story {entry.id!r} dependency {dependency!r} must name an earlier entry"
+                )
 
 
 def _validate_prefix_free(ids: list[str]) -> None:
@@ -401,8 +502,9 @@ def schedule(
 ) -> Schedule:
     """Linear scheduler: the first list entry ready to (re)dispatch.
 
-    The manifest is a flat list in strict execution order (no ``depends_on``),
-    so scheduling is a single left-to-right scan. An entry is actionable when
+    The loop intentionally projects the manifest as a serial list even when it
+    carries dependency metadata for an external orchestrator, so scheduling is
+    a single left-to-right scan. An entry is actionable when
     its state is PENDING or a resumable non-terminal (``draft`` / ``ready-for-dev``
     / ``in-progress`` / ``in-review`` = died mid-flight, re-dispatch resumes); a
     ``done`` entry is skipped (never re-dispatch done); a ``blocked``, sentinel,

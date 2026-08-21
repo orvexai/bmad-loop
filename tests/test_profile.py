@@ -32,7 +32,14 @@ dialect = "none"
 
 def test_builtin_profiles_load():
     profiles = load_profiles()
-    assert {"claude", "codex", "gemini", "opencode-http"} <= set(profiles)
+    assert {
+        "claude",
+        "codex",
+        "gemini",
+        "omni-claude",
+        "omni-codex",
+        "opencode-http",
+    } <= set(profiles)
     assert profiles["claude"].usage_parser == "claude-jsonl"
     assert profiles["codex"].hooks.dialect == "codex-hooks-json"
     assert "SessionEnd" not in profiles["codex"].hooks.events  # codex has no such hook
@@ -75,7 +82,12 @@ def test_builtin_profiles_load():
     # add no such env overrides
     assert profiles["claude"].env.get("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN") == "1"
     assert profiles["claude"].env.get("CLAUDE_CODE_DISABLE_BACKGROUND_TASKS") == "1"
-    for name in sorted(set(profiles) - {"claude"}):
+    assert profiles["omni-claude"].env == profiles["claude"].env
+    assert profiles["omni-claude"].adapter == "omni-native"
+    assert profiles["omni-codex"].adapter == "omni-native"
+    assert profiles["omni-claude"].launch_args == ("claude",)
+    assert profiles["omni-codex"].launch_args == ("codex",)
+    for name in sorted(set(profiles) - {"claude", "omni-claude"}):
         assert "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN" not in profiles[name].env
         assert "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS" not in profiles[name].env
     # transport/provider fault classification (#194): only the two profiles with
@@ -91,7 +103,14 @@ def test_builtin_profiles_load():
     # tests/test_env_fault_patterns.py; here we only pin which profiles are seeded.
     for name in ("claude", "opencode-http"):
         assert profiles[name].env_fault_patterns, f"{name} ships no env_fault_patterns"
-    for name in ("codex", "gemini", "copilot", "antigravity"):
+    for name in (
+        "codex",
+        "gemini",
+        "copilot",
+        "antigravity",
+        "omni-claude",
+        "omni-codex",
+    ):
         assert profiles[name].env_fault_patterns == ()
     # opencode-http is hookless (HTTP/SSE transport): no hook dialect surfaces,
     # skills read from the claude tree, usage comes over HTTP (no transcript parser)
@@ -191,7 +210,7 @@ def test_adapter_field_defaults_to_generic_and_parses():
     profiles = load_profiles()
     assert profiles["opencode-http"].adapter == "opencode-http"
     assert {name for name, p in profiles.items() if p.adapter == "generic"} == (
-        set(profiles) - {"opencode-http"}
+        set(profiles) - {"opencode-http", "omni-claude", "omni-codex"}
     )
 
 

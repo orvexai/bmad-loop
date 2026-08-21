@@ -1,7 +1,7 @@
 # BMAD Loop module (`bmad-loop`)
 
 A BMAD module pairing the automation skills with the
-[bmad-loop orchestrator tool](https://github.com/bmad-code-org/bmad-loop) (the
+[bmad-loop orchestrator tool](https://github.com/orvexai/bmad-loop) (the
 Python program that drives the loop). The skills can be installed by the BMAD
 installer, or laid down by `bmad-loop init` (the orchestrator's wheel **bundles**
 them); either way `bmad-loop-setup` installs the `bmad-loop` package from its
@@ -34,7 +34,7 @@ The orchestrator tool now bundles these skills, so `bmad-loop init` lays them
 down for you:
 
 ```bash
-uv tool install "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git"
+uv tool install "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git"
 bmad-loop init --project /path/to/project --cli claude   # add --cli codex/gemini as needed
 claude "/bmad-loop-setup accept all defaults"            # installs the tool + wires the project
 ```
@@ -71,7 +71,7 @@ directory name.
 - The orchestrator tool is **not** bundled in the skill dirs — the BMAD installer
   copies only the skill directories, so a sibling `tool/` would never reach an
   installed project. `bmad-loop-setup` installs the `bmad-loop` package from
-  <https://github.com/bmad-code-org/bmad-loop> (`src/bmad_loop`, `pyproject.toml`
+  <https://github.com/orvexai/bmad-loop> (`src/bmad_loop`, `pyproject.toml`
   are canonical at the repo root). (The skills, by contrast, ride along inside
   the package wheel.)
 - The inner dev primitive (`bmad-build-auto`, or `bmad-dev-auto` pre-rename) is

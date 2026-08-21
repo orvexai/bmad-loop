@@ -1,7 +1,8 @@
 # Dogfooded Story Breakdown from BMAD-METHOD PR #2549's gist
 # (https://gist.github.com/alexeyv/0d80e3b4cd79bb4423c22846fe36f610).
 # Quoted ids, independent spec_checkpoint/done_checkpoint bools, verbatim
-# invoke_dev_with, and NO depends_on — the linear stories-mode contract.
+# invoke_dev_with. Scheduling declarations are omitted to exercise the
+# backward-compatible serial default.
 - id: "1"
   title: Add story-breakdown step to bmad-spec
   description: >-

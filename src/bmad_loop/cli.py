@@ -1943,7 +1943,7 @@ def _dry_run_stories(
     )
     if (events_dir := _events_dir_preview(paths.project)) is not None:
         print(f"  env (every session): BMAD_LOOP_EVENTS_DIR={events_dir}")
-    print("linear schedule (list order — no depends_on, strictly serial):")
+    print("linear schedule (list order — bmad-loop execution remains strictly serial):")
     dev_skill = _dev_skill_for_role(pol, paths.project, "dev")
     for row in rows:
         print(f"\n  {row.position}. {row.id}  ({row.label}){_checkpoint_badge(row)}  {row.title}")

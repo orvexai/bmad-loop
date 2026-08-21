@@ -1,0 +1,19 @@
+# Codex launched through Omni's native terminal wrapper. Omni owns the private
+# tmux/runner session; bmad-loop's omni-native adapter supplies only a local PTY,
+# records the exact conversation receipt, and stops it before worktree cleanup.
+name = "omni-codex"
+binary = "omni"
+adapter = "omni-native"
+launch_args = ["codex"]
+prompt_template = "Use the ${skill} skill now, and use subagents as needed: {args}"
+bypass_args = ["--dangerously-bypass-approvals-and-sandbox"]
+model_flag = "--model"
+usage_parser = "codex-rollout"
+first_run_note = "configure/login to Omni and approve the project Codex hooks once; requires Omni with host status --sessions --json and host stop-session"
+skill_tree = ".agents/skills"
+seed_files = [".codex/config.toml"]
+
+[hooks]
+dialect = "codex-hooks-json"
+config_path = ".codex/hooks.json"
+events = { SessionStart = "SessionStart", Stop = "Stop" }

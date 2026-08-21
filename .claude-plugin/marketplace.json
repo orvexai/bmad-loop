@@ -1,11 +1,12 @@
 {
   "name": "bmad-loop",
   "owner": {
-    "name": "bmad-code-org"
+    "name": "Orvex AI"
   },
+  "description": "Orvex-maintained bmad-loop skills for deterministic BMAD epic automation, setup, escalation resolution, and deferred-work sweeps.",
   "license": "MIT",
-  "homepage": "",
-  "repository": "https://github.com/bmad-code-org/bmad-loop",
+  "homepage": "https://github.com/orvexai/bmad-loop",
+  "repository": "https://github.com/orvexai/bmad-loop",
   "keywords": ["bmad", "bmad-loop", "automation"],
   "plugins": [
     {
@@ -14,7 +15,7 @@
       "description": "Automation-mode skills driven by the bmad-loop orchestrator: project bootstrap (bmad-loop-setup), interactive escalation resolution (bmad-loop-resolve) and deferred-work sweep triage (bmad-loop-sweep) — the inner dev primitive (which self-reviews and commits) is the upstream bmad-dev-auto skill",
       "version": "0.11.0",
       "author": {
-        "name": "pinkyd"
+        "name": "Orvex AI"
       },
       "skills": [
         "./src/bmad_loop/data/skills/bmad-loop-setup",

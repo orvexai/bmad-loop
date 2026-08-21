@@ -1,0 +1,27 @@
+# Claude Code launched through Omni's native terminal wrapper. Do not add
+# --use-native-config: the packaged profile intentionally keeps Omni's configured
+# provider (including Ultracode) while preserving the project's Claude hooks.
+name = "omni-claude"
+binary = "omni"
+adapter = "omni-native"
+launch_args = ["claude"]
+prompt_template = "{prompt}"
+bypass_args = ["--permission-mode", "bypassPermissions"]
+model_flag = "--model"
+usage_parser = "claude-jsonl"
+first_run_note = "configure/login to Omni and approve the project Claude hooks once; requires Omni with host status --sessions --json and host stop-session"
+skill_tree = ".claude/skills"
+seed_files = [
+  ".mcp.json",
+  ".claude/settings.json",
+  ".claude/settings.local.json",
+]
+
+[env]
+CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN = "1"
+CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "1"
+
+[hooks]
+dialect = "claude-settings-json"
+config_path = ".claude/settings.json"
+events = { SessionStart = "SessionStart", Stop = "Stop", SessionEnd = "SessionEnd", PreCompact = "PreCompact" }

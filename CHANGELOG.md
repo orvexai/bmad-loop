@@ -7,6 +7,20 @@ breaking changes may land in a minor release.
 
 ## [Unreleased]
 
+### Added
+
+- **Omni can now own Claude/Codex coding sessions without a redundant outer tmux.**
+  The new packaged `omni-claude` and `omni-codex` profiles select a built-in
+  `omni-native` adapter. It gives each launcher a local PTY while Omni owns its
+  private tmux/runner, records an exact per-task `omni-session.json` receipt,
+  retries a dead attach client once through the harness-specific `--resume`
+  route, and refuses worktree cleanup until exact `omni host stop-session`
+  teardown is confirmed by `runner_online: false`. A pre-launch host snapshot
+  lets the next run reconcile the narrow crash window before the Web UI receipt
+  was printed. This is CLI-only lifecycle integration and uses no Omnigent MCP.
+- **Stories manifests now validate an opt-in parallel scheduling contract while bmad-loop stays serial.** Entries may declare backward-only `depends_on` prerequisites, `parallel_safe`, repository-relative `write_set` globs, and `exclusive_resources`. Missing metadata preserves legacy serial behavior; checkpoint stories cannot opt into parallel execution. The loop continues to dispatch one story at a time, while installed external orchestrators can consume the validated declarations without inventing dependencies.
+- **Orvex installs and future releases use the `orvexai/bmad-loop` fork.** The bundled setup skill, operator install commands, Python package URLs, plugin marketplace identity, and release tooling no longer fetch or publish against the upstream repository by default. Reproducible installs pin a reviewed commit that exists in the fork.
+
 ### Removed
 
 - **`verify.same_commit` is gone — nothing called it.** #645's `_canonical_commit_oid` displaced
@@ -16,6 +30,7 @@ breaking changes may land in a minor release.
 
 ### Fixed
 
+- **The bundled `bmad-loop-resolve` skill now passes strict skill-manifest validation.** Its invocation example no longer uses angle brackets in frontmatter, which validators reserve and reject.
 - **psmux: a hand-back that succeeded no longer reports as failed — or undoes itself (#659).**
   `switch_client` read its verdict off the session's attached-client count, which a same-session
   move cannot change — and same-session is the common shape for the return path, so a correct
@@ -3375,7 +3390,7 @@ enforced in CI.
   implementation phase, driven by a Python control loop with hook-based session transport and
   resumable on-disk run state.
 
-[Unreleased]: https://github.com/bmad-code-org/bmad-loop/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/orvexai/bmad-loop/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.11.0
 [0.10.0]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.10.0
 [0.9.1]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.9.1

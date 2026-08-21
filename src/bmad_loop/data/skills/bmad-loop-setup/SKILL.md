@@ -57,7 +57,7 @@ Skip this step entirely if `{project-root}/_bmad/` does not exist.
 
 The orchestrator is what spawns fresh coding CLI sessions through the selected adapter(s) to invoke `bmad-build-auto` (the upstream dev primitive; `bmad-dev-auto` on pre-rename releases) for the dev pass — then re-invokes it on the `done` spec for the follow-up review pass — and `bmad-loop-sweep`, watches their hook signals, and verifies their artifacts. Installing it is therefore part of setup, not an optional extra.
 
-> **Why from Git?** The BMAD installer copies only skill directories into a project — it does not carry sibling files, so the tool can't ride along in the skill folder. The canonical source is <https://github.com/bmad-code-org/bmad-loop>. (The reverse holds, though: the tool's wheel **bundles** the skills, so `bmad-loop init` lays them down into a project's skill trees on its own — see step 3.)
+> **Why from Git?** The BMAD installer copies only skill directories into a project — it does not carry sibling files, so the tool can't ride along in the skill folder. This Orvex module's canonical source is <https://github.com/orvexai/bmad-loop>; never substitute the upstream repository during install or upgrade. (The reverse holds, though: the tool's wheel **bundles** the skills, so `bmad-loop init` lays them down into a project's skill trees on its own — see step 3.)
 
 Unless the user explicitly asked to skip it (e.g. `skills only` / `--no-tool`), install **or upgrade** and bootstrap now. Resolve `{project-root}` to the real project path before running.
 
@@ -68,27 +68,38 @@ Unless the user explicitly asked to skip it (e.g. `skills only` / `--no-tool`), 
    - **Fresh install** (no uv-managed `bmad-loop`):
 
      ```bash
-     uv tool install "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git"
+     uv tool install "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git"
      ```
 
-     Pin a release tag for reproducibility by appending `@v<X.Y.Z>` to the Git URL.
+     Pin a reviewed commit that exists in the Orvex fork for reproducibility by
+     appending its full 40-character SHA to the Git URL, for example
+     `.../bmad-loop.git@<commit-sha>`. Never substitute an upstream-only tag or
+     commit.
 
    - **Upgrade** (uv already manages `bmad-loop`):
 
      1. Record the current version first so you can report the delta: `bmad-loop --version`.
-     2. Default — follow `main` (or the currently pinned tag):
+     2. Default — follow `main` (or the currently pinned Git revision):
 
         ```bash
         uv tool upgrade bmad-loop --reinstall
         ```
 
-        The `--reinstall` is **required** for a Git source: a plain `uv tool upgrade` reuses the cached commit and won't pull new code. Then **offer to pin a release tag** for reproducibility — if the user wants a specific version, move to it with:
+        The `--reinstall` is **required** for a Git source: a plain `uv tool upgrade` reuses the cached commit and won't pull new code. Then **offer to pin a reviewed Orvex-fork commit** for reproducibility — if the user wants a specific revision, move to it with:
 
         ```bash
-        uv tool install --force "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git@v<X.Y.Z>"
+        uv tool install --force "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git@<commit-sha>"
         ```
 
      3. Re-run `bmad-loop --version` and note the before → after for the confirmation step.
+
+   After either path, run
+   `uv tool list --show-version-specifiers --show-paths` and retain the
+   `bmad-loop` entry. Require its installation requirement to name
+   `github.com/orvexai/bmad-loop`; a uv-managed copy sourced from anywhere else
+   is not this fork and must be replaced before setup continues. Record the
+   displayed Git revision/specifier as the source receipt rather than trusting
+   the package version alone.
 
 3. **Bootstrap the project** — install the coding-CLI hooks, the bundled `bmad-loop-*` skills, the `.bmad-loop/policy.toml` template, and the gitignore entry (idempotent).
 
@@ -144,6 +155,9 @@ Report:
 
 Also report:
 
+- The retained `uv tool list --show-version-specifiers --show-paths` receipt
+  proving the installed requirement came from `orvexai/bmad-loop`, including
+  its displayed revision/specifier.
 - The `bmad-loop validate` preflight result (pass, or the readiness checklist of what's still missing).
 - That `_bmad/bmad-loop/module-help.csv` was refreshed. If `_bmad/bmad-loop/` did not exist before this run (i.e. the BMAD installer never installed the module), say that the help entries will appear in `/bmad-help` after the BMAD installer next runs, and that installing the module via `npx bmad-method install` registers it properly.
 - That this skill wrote nothing else under `_bmad/` — module registration, `config.toml`, and the help catalog are owned by the BMAD installer.

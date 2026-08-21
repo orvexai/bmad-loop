@@ -181,13 +181,20 @@ def _run_dir(project):
 
 
 def test_builtin_kinds_registered_with_needs_mux(fresh_adapter_registry):
-    """The two bundled kinds register with the correct transport requirement:
-    generic drives tmux (needs_mux), opencode-http is hookless HTTP/SSE (does not)."""
+    """Bundled kinds declare only the external transport they actually need:
+    generic drives bmad-loop's mux; Omni owns its own private tmux and the HTTP
+    adapter owns its server, so neither resolves the bmad-loop mux."""
     generic = fresh_adapter_registry.get_adapter_kind("generic")
+    omni = fresh_adapter_registry.get_adapter_kind("omni-native")
     http = fresh_adapter_registry.get_adapter_kind("opencode-http")
     assert generic.needs_mux is True
+    assert omni.needs_mux is False
     assert http.needs_mux is False
-    assert fresh_adapter_registry.known_adapter_kinds() == ["generic", "opencode-http"]
+    assert fresh_adapter_registry.known_adapter_kinds() == [
+        "generic",
+        "omni-native",
+        "opencode-http",
+    ]
 
 
 def test_builtin_name_constants_match_the_registered_names(fresh_adapter_registry):
@@ -195,9 +202,11 @@ def test_builtin_name_constants_match_the_registered_names(fresh_adapter_registr
     than on literals. Pin them to what actually registers, so a rename cannot make
     that check silently stop firing — an absent finding reads as a pass."""
     assert fresh_adapter_registry.GENERIC == "generic"
+    assert fresh_adapter_registry.OMNI_NATIVE == "omni-native"
     assert fresh_adapter_registry.OPENCODE_HTTP == "opencode-http"
     assert set(fresh_adapter_registry.known_adapter_kinds()) == {
         fresh_adapter_registry.GENERIC,
+        fresh_adapter_registry.OMNI_NATIVE,
         fresh_adapter_registry.OPENCODE_HTTP,
     }
 
@@ -235,7 +244,7 @@ def test_detect_adapters_labels_builtin(fresh_adapter_registry):
     registry = fresh_adapter_registry
     registry.register_adapter("extra", needs_mux=False, load=lambda: _stub_builder())
     rows = {r.name: r for r in registry.detect_adapters()}
-    assert set(rows) == {"generic", "opencode-http", "extra"}
+    assert set(rows) == {"generic", "omni-native", "opencode-http", "extra"}
     assert rows["generic"].builtin is True and rows["generic"].needs_mux is True
     assert rows["opencode-http"].builtin is True and rows["opencode-http"].needs_mux is False
     assert rows["extra"].builtin is False
@@ -1035,6 +1044,33 @@ def test_make_adapters_opencode_http_dispatch_unchanged(
     assert adapters["dev"].profile.adapter == "opencode-http"
     assert isinstance(adapters["triage"], OpencodeHttpAdapter)
     assert not isinstance(adapters["triage"], OpencodeDevAdapter)
+
+
+def test_make_adapters_omni_native_owns_transport_without_resolving_mux(
+    fresh_adapter_registry, project, monkeypatch
+):
+    """The Omni profiles select their PTY bridge without an outer multiplexer.
+
+    This is the bootstrap-level proof complementing the adapter's PTY lifecycle
+    tests: a future ``needs_mux=True`` regression would call ``no_mux`` here and
+    reintroduce the redundant double-tmux ownership model.
+    """
+    from bmad_loop.adapters.omni_native import OmniDevAdapter, OmniNativeAdapter
+
+    def no_mux():
+        raise AssertionError("omni-native must not resolve bmad-loop's multiplexer")
+
+    monkeypatch.setattr(mux_mod, "get_multiplexer", no_mux)
+    install_bmad_config(project)
+    _write_policy(project.project, '[adapter]\nname = "omni-codex"\n')
+    pol = policy_mod.load(project.project / ".bmad-loop" / "policy.toml")
+
+    adapters = runsetup.make_adapters(project.project, _run_dir(project.project), pol)
+    assert isinstance(adapters["dev"], OmniDevAdapter)
+    assert adapters["dev"] is adapters["review"]
+    assert adapters["dev"].profile.adapter == "omni-native"
+    assert isinstance(adapters["triage"], OmniNativeAdapter)
+    assert not isinstance(adapters["triage"], OmniDevAdapter)
 
 
 # --------------------------------------------------------------------------- #

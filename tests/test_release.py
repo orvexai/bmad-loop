@@ -18,7 +18,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 import release  # noqa: E402
 
-REPO_URL = "https://github.com/bmad-code-org/bmad-loop"
+REPO_URL = "https://github.com/orvexai/bmad-loop"
 
 
 # --- version parsing / ordering ------------------------------------------- #
@@ -72,8 +72,8 @@ SAMPLE = """# Changelog
 
 - **Older thing.** Context here.
 
-[0.4.3]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.4.3
-[0.4.2]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.4.2
+[0.4.3]: https://github.com/orvexai/bmad-loop/releases/tag/v0.4.3
+[0.4.2]: https://github.com/orvexai/bmad-loop/releases/tag/v0.4.2
 """
 
 
@@ -116,9 +116,9 @@ PROMOTED = """# Changelog
 
 - **A thing.** It no longer breaks.
 
-[Unreleased]: https://github.com/bmad-code-org/bmad-loop/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.5.0
-[0.4.3]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.4.3
+[Unreleased]: https://github.com/orvexai/bmad-loop/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/orvexai/bmad-loop/releases/tag/v0.5.0
+[0.4.3]: https://github.com/orvexai/bmad-loop/releases/tag/v0.4.3
 """
 
 # The drift the prepare guard exists to catch: a `## [0.5.0]` section authored
@@ -139,15 +139,15 @@ DRIFTED = """# Changelog
 
 - **A thing.** It no longer breaks.
 
-[Unreleased]: https://github.com/bmad-code-org/bmad-loop/compare/v0.4.3...HEAD
-[0.4.3]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.4.3
+[Unreleased]: https://github.com/orvexai/bmad-loop/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/orvexai/bmad-loop/releases/tag/v0.4.3
 """
 
 # Each derives from PROMOTED by breaking exactly one thing, so exactly one `check`
 # arm reports — a shared "rc == 1" would pass for the wrong reason.
 NO_UNRELEASED_HEADING = PROMOTED.replace("## [Unreleased]\n\n", "", 1)
 NO_UNRELEASED_REF = PROMOTED.replace(
-    "[Unreleased]: https://github.com/bmad-code-org/bmad-loop/compare/v0.5.0...HEAD\n", "", 1
+    "[Unreleased]: https://github.com/orvexai/bmad-loop/compare/v0.5.0...HEAD\n", "", 1
 )
 STALE_UNRELEASED_REF = PROMOTED.replace("/compare/v0.5.0...HEAD", "/compare/v0.4.3...HEAD", 1)
 
@@ -176,8 +176,8 @@ DUPLICATE_UNRELEASED = """# Changelog
 
 - **Never promoted.** Left behind by the half-finished rename.
 
-[Unreleased]: https://github.com/bmad-code-org/bmad-loop/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.5.0
+[Unreleased]: https://github.com/orvexai/bmad-loop/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/orvexai/bmad-loop/releases/tag/v0.5.0
 """
 
 UNRELEASED_REOPENED_BELOW = """# Changelog
@@ -190,8 +190,8 @@ UNRELEASED_REOPENED_BELOW = """# Changelog
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/bmad-code-org/bmad-loop/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/bmad-code-org/bmad-loop/releases/tag/v0.5.0
+[Unreleased]: https://github.com/orvexai/bmad-loop/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/orvexai/bmad-loop/releases/tag/v0.5.0
 """
 
 

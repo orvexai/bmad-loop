@@ -7,7 +7,7 @@
 Plain Python drives the loop — **pick story → implement → adversarially review → verify → commit** — while LLMs do only the creative work, inside disposable, fresh-context coding-agent sessions you can attach to and watch.
 
 ![Status: early open beta](https://img.shields.io/badge/status-early%20open%20beta-orange)
-[![CI](https://github.com/bmad-code-org/bmad-loop/actions/workflows/ci.yml/badge.svg)](https://github.com/bmad-code-org/bmad-loop/actions/workflows/ci.yml)
+[![CI](https://github.com/orvexai/bmad-loop/actions/workflows/ci.yml/badge.svg)](https://github.com/orvexai/bmad-loop/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%E2%80%933.14-blue)
 ![CLIs](https://img.shields.io/badge/agents-claude%20%C2%B7%20codex%20%C2%B7%20gemini%20%C2%B7%20copilot%20%C2%B7%20antigravity%20%C2%B7%20opencode-8a2be2)
 ![No LLM in the loop](https://img.shields.io/badge/control%20loop-deterministic-success)
@@ -31,9 +31,9 @@ Plain Python drives the loop — **pick story → implement → adversarially re
 > run state, and skill contracts can all shift between versions. It also drives real coding
 > agents that write and commit in your repository, so point it at work you can review and
 > roll back (`[scm] isolation = "worktree"` keeps a failed attempt off your main checkout),
-> pin a release tag if you want a stable base, and read the [CHANGELOG](CHANGELOG.md) before
+> pin a reviewed Orvex-fork commit if you want a stable base, and read the [CHANGELOG](CHANGELOG.md) before
 > upgrading. Bug reports and feedback are what the beta is for — open an
-> [issue](https://github.com/bmad-code-org/bmad-loop/issues) with `bmad-loop diagnose` output
+> [issue](https://github.com/orvexai/bmad-loop/issues) with `bmad-loop diagnose` output
 > attached, or come talk to us on [Discord](https://discord.gg/gk8jAdXWmj).
 
 ## Why bmad-loop
@@ -45,12 +45,12 @@ Inspired by the original [bmad-automator](https://github.com/bmad-code-org/bmad-
 - 🔍 **Trust nothing, verify everything.** After each session the orchestrator checks artifacts on disk: spec frontmatter status, baseline-commit validity, non-empty diff, sprint-status sync, and _your_ test/lint commands before any commit. An exact recorded baseline passes; so does a uniquely resolved immutable descendant that is reachable from `HEAD`, but its proof is measured after that commit and must be tracked, staged, or committed — untracked-only residue does not count. Deferred-work bundles retain their older-ancestor exception. In the default shared checkout, later tracked changes prove work exists but cannot identify which session made it; `[scm] isolation = "worktree"` preserves that provenance.
 - 📒 **One source of truth.** `sprint-status.yaml` is the workflow ledger: the loop's dev skill flips only its story spec's status, the orchestrator mirrors that onto the board through a single idempotent, never-regress writer, and verification re-checks the stage after every session.
 - 🪟 **Fresh context per step.** Dev and review are separate sessions — review never inherits the implementer's context, so there's no anchoring bias.
-- ♻️ **Resumable & multi-agent.** Every run is a resumable state machine on disk, and a generic tmux adapter drives `claude`, `codex`, `gemini`, `copilot`, or `antigravity` (mix per stage).
+- ♻️ **Resumable & multi-agent.** Every run is a resumable state machine on disk. The generic adapter drives `claude`, `codex`, `gemini`, `copilot`, or `antigravity`; `omni-native` lets Omni own Claude/Codex's private tmux instead (mix profiles per stage).
 - 🌿 **Optional worktree isolation.** Opt in (`[scm] isolation = "worktree"`) and each story runs in its own git worktree/branch and merges back locally — your main checkout stays free while a run is in flight.
 
 ## Requirements
 
-- **Python 3.11+**, a **terminal multiplexer** (tmux is the bundled default; 3.2 is the supported minimum, not enforced at selection), and a supported coding CLI — `claude` by default; `codex`, `gemini`, `copilot`, and `antigravity` (`agy`) via [profiles](#other-coding-clis).
+- **Python 3.11+** and a supported coding CLI. Generic profiles require a **terminal multiplexer** (tmux is the bundled default; 3.2 is the supported minimum, not enforced at selection). The `omni-claude` / `omni-codex` profiles require `omni` and a POSIX PTY but do not resolve bmad-loop's multiplexer because Omni owns its private tmux.
 - **Linux or macOS** (or **Windows via WSL**, which _is_ Linux — it runs as-is). tmux is the bundled terminal-multiplexer backend (externals like the [herdr adapter](https://github.com/pbean/bmad-loop-adapter-herdr) co-install as packages and self-register — see [Terminal multiplexer backends](docs/multiplexer-backends.md)), and all of it sits behind a pluggable **registry** of OS seams (transport, process lifecycle, hook interpreter) with availability-aware selection — env var → persisted `[mux] backend` choice (`bmad-loop mux set <name>`) → platform default (`psmux` on Windows, `tmux` elsewhere) → first available platform match — so a native-Windows backend slots in as new files + a registration line each, with no engine edits — see [Porting bmad-loop to a new OS](docs/porting-to-a-new-os.md). Native Windows is not yet shipped.
 - A **BMAD v6 project** (`_bmad/bmm/config.yaml`, a `sprint-status.yaml` from `bmad-sprint-planning`) on **BMAD-METHOD ≥ 6.10.0**, with three skill sets installed (standard BMAD skills stay untouched):
   - the upstream dev primitive — `bmad-build-auto`, or a complete `bmad-dev-auto` on pre-rename releases. bmad-loop drives whichever is on disk under that name, so either era works with no config edit; the bare forwarding shim the rename leaves behind is refused as incomplete — it has neither `step-04-review.md` nor `customize.toml` — because a session dispatched into it stalls on an interactive migration gate.
@@ -211,7 +211,7 @@ Like `spec_checkpoint` and `done_checkpoint`, this is a **human-authored, caller
 
 A story may set both checkpoints (it pauses twice); `gates.mode` pauses stack on top. A blocked story escalates exactly as in sprint mode — `bmad-loop resolve`, then re-arm + resume — now with the story's title/description and the blocking condition surfaced; a pre-planning-halt **sentinel** spec is auto-deleted (a copy preserved under the run dir) on re-arm for a clean re-dispatch.
 
-`bmad-loop run --dry-run --spec <folder>` prints the linear schedule (list order, checkpoint markers, live on-disk state); `bmad-loop status` shows the same stories board.
+`bmad-loop run --dry-run --spec <folder>` prints the loop's serial execution projection (list order, checkpoint markers, live on-disk state); `bmad-loop status` shows the same stories board. `stories.yaml` may also carry validated `depends_on`, `parallel_safe`, `write_set`, and `exclusive_resources` declarations for an external wave orchestrator; bmad-loop itself remains the deterministic one-story-at-a-time completion authority.
 
 > Stories mode requires a dev primitive new enough to support folder+id dispatch; the run preflight (and `bmad-loop validate`) checks for it and tells you to update the BMAD module if it is missing. Sprint mode is unaffected and remains the default indefinitely.
 
@@ -330,10 +330,11 @@ The orchestrator drives the upstream dev primitive — `bmad-build-auto`, or `bm
 
 ```bash
 # latest from main (tracks HEAD — newest features, less stable):
-uv tool install "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git"
+uv tool install "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git"
 
-# OR a pinned release tag (reproducible — recommended for day-to-day use):
-uv tool install "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git@v0.9.1"
+# OR a commit that exists in the Orvex fork (reproducible — recommended for
+# unattended machines; replace the placeholder with the reviewed 40-char SHA):
+uv tool install "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git@<commit-sha>"
 
 bmad-loop init --project /path/to/project --cli claude   # add --cli codex/gemini as needed
 claude "/bmad-loop-setup accept all defaults"            # installs the tool + wires the project
@@ -354,15 +355,15 @@ claude "/bmad-loop-setup upgrade"
 ```bash
 # 1. upgrade the tool. --reinstall is required for a git source: a plain
 #    `uv tool upgrade` reuses the cached commit and won't pull new code.
-uv tool upgrade bmad-loop --reinstall                      # follows main or your pinned tag
-#    to move to a newer tag, re-run install with the new ref:
-#    uv tool install --force "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git@v0.9.1"
+uv tool upgrade bmad-loop --reinstall                      # follows main or your pinned revision
+#    to move to a reviewed commit, re-run install with the new ref:
+#    uv tool install --force "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git@<commit-sha>"
 
 # 2. re-lay the refreshed skills into EACH project that uses bmad-loop:
 bmad-loop init --project /path/to/project --force-skills
 ```
 
-Your `.bmad-loop/policy.toml` is left untouched on upgrade — new keys are optional and fall back to their defaults, so configs survive. `init` now also gitignores policy.toml (it is per-machine: it carries the `[mux] backend` choice); if yours is already committed, run `git rm --cached .bmad-loop/policy.toml` once to stop sharing it (your local copy is kept). Check the [CHANGELOG / releases](https://github.com/bmad-code-org/bmad-loop/releases) for what changed between tags.
+Your `.bmad-loop/policy.toml` is left untouched on upgrade — new keys are optional and fall back to their defaults, so configs survive. `init` now also gitignores policy.toml (it is per-machine: it carries the `[mux] backend` choice); if yours is already committed, run `git rm --cached .bmad-loop/policy.toml` once to stop sharing it (your local copy is kept). Check the [Orvex fork's CHANGELOG / releases](https://github.com/orvexai/bmad-loop/releases) for what changed between tags.
 
 To remove bmad-loop from a project, see [Uninstalling](docs/setup-guide.md#uninstalling) — it reverses what `init` laid down (state, skills, hooks, gitignore) and uninstalls the tool.
 
@@ -435,7 +436,7 @@ skill = "bmad-dev-auto"    # the only supported value — the generic upstream d
                            # No settings-schema entry: edit it here, not in the TUI editor.
 
 [adapter]
-name = "claude"            # CLI profile: claude | codex | gemini | copilot | antigravity | opencode-http (alias: opencode) | custom
+name = "claude"            # CLI profile: claude | codex | omni-claude | omni-codex | gemini | copilot | antigravity | opencode-http (alias: opencode) | custom
 model = ""                 # empty = CLI default (opencode-http wants "provider/model")
 cleanup_session_on_finish = true  # kill the run's tmux session when it finishes (false keeps it for inspection)
 # extra_args replaces the profile's default bypass flags when set:
@@ -641,10 +642,19 @@ One generic driver (`adapters/generic.py`) runs any coding CLI that fits the inj
 | ------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `claude`      | supported                                | reference implementation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `codex`       | supported, E2E-verified                  | Codex ≥ 0.139. No slash expansion in the initial prompt — the profile renders `$skill-name` mentions (plus a "use subagents as needed" nudge) instead. No SessionEnd hook; window-death fallback covers crashes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `omni-claude` | supported, lifecycle-unit-verified       | Claude Code through Omni's native wrapper. Omni owns the private tmux/runner; bmad-loop supplies a PTY, records the exact conversation, and confirms runner shutdown before cleanup. Keeps Omni's configured provider (`--use-native-config` is intentionally absent).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `omni-codex`  | supported, lifecycle-unit-verified       | Codex through the same `omni-native` lifecycle. A dead attach client is resumed once with `omni codex --resume`; exact `host stop-session` teardown is mandatory before worktree retirement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `gemini`      | supported, E2E-verified                  | Gemini CLI ≥ 0.46 (hooks on by default since then). Launches with `-i` to stay interactive; `AfterAgent` maps to canonical Stop. Usage parser validated against real chat logs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `copilot`     | supported, E2E-verified                  | GitHub Copilot **CLI** (the `copilot` binary, GA ≥ 2026-02) — _not_ the VS Code extension. Launches with `-i` to stay interactive; turn-end is `agentStop` (per response turn); `--allow-all-tools` for unattended runs. `copilot-events` usage parser reads token totals from the trailing `session.shutdown` line, so the profile waits a short grace (`usage_grace_s = 8`) before tallying. **Pin a capable model** (see below).                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `antigravity` | experimental — `isolation = "none"` only | Google **Antigravity CLI** (`agy` ≥ 1.1.3). Launches with `-i` to stay interactive; `Stop` is the turn-end event (agy has no SessionStart/SessionEnd hook). Skills and hooks live in `.agents/` (flat `Stop` handler in `.agents/hooks.json`, keyed by hook-group name). Hook payloads are protojson/camelCase. **Trust is exact-path**: `agy` blocks on a "trust this folder" dialog for any workspace not listed verbatim in `settings.json` `trustedWorkspaces`, and `--dangerously-skip-permissions` does not bypass it — so `isolation = "worktree"` hangs ([#169](https://github.com/bmad-code-org/bmad-loop/issues/169)). `usage_parser = "none"` is permanent, not pending: agy's transcript carries no usage data (tokens live only in an internal SQLite/protobuf store), so runs work but token columns stay empty. Verify against your build with `probe-adapter antigravity`. |
 | `opencode`    | supported, E2E-verified                  | **OpenCode** ≥ 1.18 (profile `opencode-http`), driven over HTTP/SSE — one headless `opencode serve` per session, **no tmux window**. Needs the extra: `pip install 'bmad-loop[opencode]'`. Auth once globally with `opencode auth login`; skills live in `.claude/skills/`; set `model` as `provider/model` (e.g. `anthropic/claude-haiku-4-5`). Watch sessions via `run_dir/logs/<task_id>.log` or the TUI Log tab; `resolve` is `--no-interactive` only; the Unity plugin's window guards are unsupported here.                                                                                                                                                                                                                                                                                                                                                                          |
+
+`omni attach` is a live Omnigent REPL client, not the native coding-terminal
+reattach path. The adapter therefore uses the exact harness wrapper
+(`omni claude --resume` or `omni codex --resume`). Do not approximate these
+profiles with a project-local generic `binary = "omni"` profile: that creates a
+double-tmux lifecycle in which killing the outer window does not prove the
+daemon-owned runner stopped.
 
 **Copilot — pin a capable model:** Copilot's free default (GPT-5 mini) is unreliable for the multi-step dev/review skills — it silently skips steps mid-workflow and fails the story. Set a capable model in policy, e.g. `[adapter] model = "claude-sonnet-4-6"` (passed through as `--model`), for end-to-end reliability. Because Copilot fires `agentStop` per response turn, a thorough multi-turn review needs more than one nudge to finish; the profile ships `stop_without_result_nudges = 5`, and you can tune it per stage (e.g. `[adapter.review] stop_without_result_nudges = …`). Both knobs are editable in the settings TUI under `[adapter]`.
 

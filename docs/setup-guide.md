@@ -58,7 +58,8 @@ The BMAD-method installer copies the three `bmad-loop-*` skill directories
 (`bmad-loop-setup`, `bmad-loop-sweep`, `bmad-loop-resolve`) into your project. It does **not** carry the orchestrator tool — the installer copies only skill
 directories, not their sibling files, so the tool can't ride along in the skill folder.
 It is installed separately from Git by the setup skill. The canonical source is
-<https://github.com/bmad-code-org/bmad-loop>. (Going the other way, the tool's wheel
+<https://github.com/orvexai/bmad-loop>. Do not substitute the upstream repository
+during setup or upgrade. (Going the other way, the tool's wheel
 bundles the skills, so `bmad-loop init` can install them without the BMAD installer —
 when the installer already placed them, `init` simply skips the existing copies.)
 
@@ -169,8 +170,8 @@ would not carry.
 
 ## Choosing which CLIs to drive
 
-The supported adapters are `claude` (the default), `codex`, `gemini`, `copilot`,
-`antigravity` (Google's `agy`, experimental — `isolation = "none"` only), and `opencode`
+The supported adapters are `claude` (the default), `codex`, `omni-claude`,
+`omni-codex`, `gemini`, `copilot`, `antigravity` (Google's `agy`, experimental — `isolation = "none"` only), and `opencode`
 (OpenCode ≥ 1.18 over HTTP/SSE, profile `opencode-http` — no tmux window; needs the
 `bmad-loop[opencode]` extra and `model` set as `provider/model`). You can pick more
 than one — register every CLI you intend to use for dev, review, or sweep triage.
@@ -205,7 +206,7 @@ The `[tui]` extra pulls in the Textual dashboard (`textual` + `tomlkit` + `pyte`
 **Together (recommended):**
 
 ```bash
-uv tool install "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git"
+uv tool install "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git"
 ```
 
 **Tool first, TUI later (separately):** install the core without the extra, then add the
@@ -213,10 +214,10 @@ dashboard whenever you want it by re-running the same command **with** `[tui]`:
 
 ```bash
 # core tool only
-uv tool install "bmad-loop @ git+https://github.com/bmad-code-org/bmad-loop.git"
+uv tool install "bmad-loop @ git+https://github.com/orvexai/bmad-loop.git"
 
 # add the TUI later — re-run with the extra (uv upgrades the install in place)
-uv tool install --upgrade "bmad-loop[tui] @ git+https://github.com/bmad-code-org/bmad-loop.git"
+uv tool install --upgrade "bmad-loop[tui] @ git+https://github.com/orvexai/bmad-loop.git"
 ```
 
 Until the extra is present, `bmad-loop tui` prints a clear error
@@ -246,11 +247,14 @@ bmad-loop init --project <project-root> --cli claude
 
 # multiple, e.g. claude + codex + gemini
 bmad-loop init --project <project-root> --cli claude --cli codex --cli gemini
+
+# Omni owns the native Claude/Codex private tmux sessions
+bmad-loop init --project <project-root> --cli omni-claude --cli omni-codex
 ```
 
 Run with no `--cli` and `init` registers hooks for every CLI the `policy.toml` references,
 so a dual-client setup that's already configured in policy needs no extra flags. Names must
-be exactly `claude`, `codex`, `gemini`, `copilot`, `antigravity`, or `opencode-http` (alias
+be exactly `claude`, `codex`, `omni-claude`, `omni-codex`, `gemini`, `copilot`, `antigravity`, or `opencode-http` (alias
 `opencode`) — `init` errors on an unknown profile and lists the valid ones. A hookless
 profile like `opencode-http` installs its skills but registers no hooks (it signals over
 HTTP/SSE).
@@ -266,6 +270,16 @@ them to whoever owns the machine:
 - **codex** — run `codex` once in the project and accept **both** prompts: workspace trust,
   then "Hooks need review → Trust all and continue" (untrusted hooks silently never fire).
   Requires Codex ≥ 0.139.
+- **omni-claude / omni-codex** — configure and authenticate `omni`, then approve
+  the underlying project hooks once. These profiles use the built-in
+  `omni-native` adapter: a local PTY feeds Omni's own private tmux, the exact
+  conversation is persisted in `tasks/<task-id>/omni-session.json`, and exact
+  `omni host stop-session` plus `runner_online: false` is required before a
+  worktree can be removed. A dropped attach is retried once through
+  `omni claude|codex --resume`; generic `omni attach` is a REPL client, not the
+  native coding-terminal path. Do not create a generic profile whose binary is
+  merely `omni`—that leaves the inner daemon-owned runner outside the outer
+  window's cleanup proof.
 - **gemini** — authenticate once (browser OAuth or `GEMINI_API_KEY`). Requires Gemini CLI
   ≥ 0.46.
 - **copilot** — run `copilot` once in the project and authenticate (`gh` / a Copilot
@@ -297,8 +311,9 @@ them to whoever owns the machine:
 
 ### Skill location
 
-`claude` reads skills from `.claude/skills/`; `codex`, `gemini`, `copilot`, and `antigravity`
-read from `.agents/skills/`. `init` installs the bundled `bmad-loop-*` skills into the right tree
+`claude` and `omni-claude` read skills from `.claude/skills/`; `codex`,
+`omni-codex`, `gemini`, `copilot`, and `antigravity` read from
+`.agents/skills/`. `init` installs the bundled `bmad-loop-*` skills into the right tree
 for each CLI you pass via `--cli`, so selecting any of the `.agents/skills/` CLIs populates it automatically. It skips skill
 dirs that already exist — pass `--force-skills` to overwrite a stale copy, or `--no-skills` to
 manage them yourself.

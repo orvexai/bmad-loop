@@ -65,7 +65,7 @@ STAMPED_PATHS = [
 ]
 ASSET_PATH = "docs/images"
 
-DEFAULT_REPO_URL = "https://github.com/bmad-code-org/bmad-loop"
+DEFAULT_REPO_URL = "https://github.com/orvexai/bmad-loop"
 
 
 # --------------------------------------------------------------------------- #
@@ -231,7 +231,7 @@ def repo_url() -> str:
         origin = _git_out("remote", "get-url", "origin")
     except subprocess.CalledProcessError:
         return DEFAULT_REPO_URL
-    # git@github.com:bmad-code-org/bmad-loop.git  ->  https://github.com/bmad-code-org/bmad-loop
+    # git@github.com:orvexai/bmad-loop.git  ->  https://github.com/orvexai/bmad-loop
     m = re.match(r"^git@([^:]+):(.+?)(?:\.git)?$", origin)
     if m:
         return f"https://{m.group(1)}/{m.group(2)}"

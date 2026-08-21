@@ -5,7 +5,7 @@ bmad-loop is made possible by contributions from our community. We gratefully ac
 ## How We Credit Contributors
 
 - **Git history** — Every contribution is preserved in the project's commit history
-- **GitHub contributors graph** — Visual representation at <https://github.com/bmad-code-org/bmad-loop/graphs/contributors>
+- **GitHub contributors graph** — Visual representation at <https://github.com/orvexai/bmad-loop/graphs/contributors>
 
 ## Becoming a Contributor
 

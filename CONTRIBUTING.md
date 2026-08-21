@@ -39,11 +39,11 @@ bmad-loop is a deterministic orchestrator: plain Python drives the loop while LL
 
 1. **Search existing issues** — Use the GitHub issue search to check if your bug or feature has already been reported
 2. **Search closed issues** — Your issue may have been fixed or addressed previously
-3. **Check discussions** — Some conversations happen in [GitHub Discussions](https://github.com/bmad-code-org/bmad-loop/discussions)
+3. **Check discussions** — Some conversations happen in [GitHub Discussions](https://github.com/orvexai/bmad-loop/discussions)
 
 ### Bug Reports
 
-After searching, if the bug is unreported, use the [bug report template](https://github.com/bmad-code-org/bmad-loop/issues/new?template=bug-report.yaml) and include:
+After searching, if the bug is unreported, use the [bug report template](https://github.com/orvexai/bmad-loop/issues/new?template=bug-report.yaml) and include:
 
 - Clear description of the problem
 - Steps to reproduce
@@ -53,7 +53,7 @@ After searching, if the bug is unreported, use the [bug report template](https:/
 
 ### Feature Requests
 
-After searching, use the [feature request template](https://github.com/bmad-code-org/bmad-loop/issues/new?template=feature-request.md) and explain:
+After searching, use the [feature request template](https://github.com/orvexai/bmad-loop/issues/new?template=feature-request.md) and explain:
 
 - What the feature is
 - Why it would benefit the bmad-loop community
@@ -213,8 +213,8 @@ Keep messages under 72 characters. Each commit = one logical change.
 ## Need Help?
 
 - 💬 **Discord**: [Join the community](https://discord.gg/gk8jAdXWmj)
-- 🐛 **Bugs**: Use the [bug report template](https://github.com/bmad-code-org/bmad-loop/issues/new?template=bug-report.yaml)
-- 💡 **Features**: Use the [feature request template](https://github.com/bmad-code-org/bmad-loop/issues/new?template=feature-request.md)
+- 🐛 **Bugs**: Use the [bug report template](https://github.com/orvexai/bmad-loop/issues/new?template=bug-report.yaml)
+- 💡 **Features**: Use the [feature request template](https://github.com/orvexai/bmad-loop/issues/new?template=feature-request.md)
 
 ---
 
