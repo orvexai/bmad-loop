@@ -92,6 +92,44 @@ def test_skill_md_registers_help_at_the_path_v610_reads(skill_md):
     assert "_bmad/bmad-loop/module-help.csv" in skill_md
 
 
+@pytest.mark.parametrize(
+    "required",
+    [
+        "`omni-claude`",
+        "`omni-codex`",
+        "`omni-native`",
+        "private tmux/runner session",
+        "`omni claude|codex --resume`",
+        "`omni host stop-session`",
+        "`runner_online: false`",
+        "Omnigent MCP",
+        "CLI-created worker/session launches use the Omni CLI",
+        'generic adapter with\n   `binary = "omni"`',
+        'bmad-loop init --project "{project-root}" --cli omni-claude --cli omni-codex',
+        "hooks and skill artifacts",
+        'name = "omni-claude"',
+        'name = "omni-codex"',
+        "preserve every unrelated policy section, key, and setting",
+    ],
+)
+def test_skill_md_documents_omni_native_setup_contract(skill_md, required):
+    """Keep the setup prose aligned with the shipped Omni lifecycle contract."""
+    assert required in skill_md
+
+
+def test_skill_md_keeps_step_numbering_and_skill_tree_mapping(skill_md):
+    assert "\n5. **Point the user at per-role adapter config.**" in skill_md
+    assert "\n   5. **Point the user at per-role adapter config.**" not in skill_md
+    assert (
+        "`.claude/skills/` for `claude`, `omni-claude`, and `opencode-http` (alias `opencode`)"
+        in skill_md
+    )
+    assert (
+        "`.agents/skills/` for `codex`, `omni-codex`, `gemini`, `copilot`, and `antigravity`"
+        in skill_md
+    )
+
+
 def test_setup_skill_ships_no_scripts(skill_root):
     # all three PEP 723 scripts were retired with #258/#259; nothing left to invoke
     assert not skill_root.joinpath("scripts").is_dir()

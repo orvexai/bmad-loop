@@ -103,9 +103,9 @@ Unless the user explicitly asked to skip it (e.g. `skills only` / `--no-tool`), 
 
 3. **Bootstrap the project** — install the coding-CLI hooks, the bundled `bmad-loop-*` skills, the `.bmad-loop/policy.toml` template, and the gitignore entry (idempotent).
 
-   First decide **which coding CLI(s)** the orchestrator should drive. The supported adapters are `claude` (default), `codex`, `gemini`, `copilot`, and `antigravity` (Google's `agy`). Hooks are registered per CLI, so the choice matters — register every CLI you intend to use for dev/review/triage. Ask the user (unless they already specified it in their setup args, e.g. `cli: claude, codex`, or accepted defaults — then default to `claude` only):
+   First decide **which coding CLI(s)** the orchestrator should drive. The bundled CLI/profile choices are `claude` (default), `codex`, `omni-claude`, `omni-codex`, `gemini`, `copilot`, `antigravity` (Google's `agy`), and `opencode-http` (alias `opencode`). Project-defined profiles under `.bmad-loop/profiles/` are also accepted. Hooks and bundled skill artifacts are registered per CLI, so the choice matters — register every CLI you intend to use for dev/review/triage. Ask the user (unless they already specified it in their setup args, e.g. `cli: claude, codex`, or accepted defaults — then default to `claude` only):
 
-   > "Which coding CLI(s) should the orchestrator drive — `claude`, `codex`, `gemini`, `copilot`, and/or `antigravity`? You can pick more than one. [claude]"
+   > "Which coding CLI(s) should the orchestrator drive — `claude`, `codex`, `omni-claude`, `omni-codex`, `gemini`, `copilot`, `antigravity`, and/or `opencode-http`? You can pick more than one. [claude]"
 
    Build the command with one `--cli <name>` per selected CLI (the flag is repeatable). **On an upgrade, append `--force-skills`** so the per-project skill copies are actually refreshed — without it `init` skips every existing skill dir and the project keeps stale skills against the upgraded tool. On a fresh install, omit it.
 
@@ -116,13 +116,28 @@ Unless the user explicitly asked to skip it (e.g. `skills only` / `--no-tool`), 
    # fresh install, multiple, e.g. claude + codex + gemini
    bmad-loop init --project "{project-root}" --cli claude --cli codex --cli gemini
 
+   # Omni-native Claude + Codex
+   bmad-loop init --project "{project-root}" --cli omni-claude --cli omni-codex
+
    # upgrade — refresh the bundled skills in place
    bmad-loop init --project "{project-root}" --cli claude --force-skills
    ```
 
-   Names must be exactly `claude`, `codex`, `gemini`, `copilot`, or `antigravity` — `init` errors on an unknown profile and lists the valid ones. `init` prints any one-time first-run notes per CLI (e.g. start `claude` once in the project and accept the workspace-trust + hooks-approval dialogs before `bmad-loop run` — spawned sessions can't answer first-run dialogs). Relay those notes to the user.
+   Names must be exactly one of the bundled profiles above (with `opencode` accepted as the alias for `opencode-http`) or a project-defined profile — `init` errors on an unknown profile and lists the valid ones. `init` prints any one-time first-run notes per CLI (e.g. start `claude` once in the project and accept the workspace-trust + hooks-approval dialogs before `bmad-loop run` — spawned sessions can't answer first-run dialogs). Relay those notes to the user.
 
-   **Skills are installed automatically:** `init` lays the bundled `bmad-loop-*` skills into the right tree for each selected CLI — `.claude/skills/` for `claude`, `.agents/skills/` for `codex`/`gemini`/`copilot`/`antigravity`. On a fresh install, existing skill dirs are left untouched; on an upgrade, `--force-skills` overwrites them with the bundled copies from the upgraded tool (use `--no-skills` to skip the step and manage skills yourself).
+   `omni-claude` and `omni-codex` both use the built-in `omni-native` adapter. Omni owns
+   the private tmux/runner session; bmad-loop supplies only the local PTY, records the
+   exact session receipt, and owns the lifecycle proof. If an attach client dies while
+   the runner is still online, the adapter reattaches once with the harness-specific
+   `omni claude|codex --resume` command. Shutdown must use the exact recorded
+   `omni host stop-session` target and wait until `runner_online: false` before
+   retiring a worktree or PTY. `omni attach` is a live REPL client, not the native
+   coding-terminal launch path. CLI-created worker/session launches use the Omni CLI
+   only; do not use Omnigent MCP for them. Do not model Omni as a generic adapter with
+   `binary = "omni"`: the generic outer window cannot prove that Omni's inner runner
+   stopped.
+
+   **Skills are installed automatically:** `init` lays the bundled `bmad-loop-*` skills into the right tree for each selected CLI — `.claude/skills/` for `claude`, `omni-claude`, and `opencode-http` (alias `opencode`); `.agents/skills/` for `codex`, `omni-codex`, `gemini`, `copilot`, and `antigravity`. On a fresh install, existing skill dirs are left untouched; on an upgrade, `--force-skills` overwrites them with the bundled copies from the upgraded tool (use `--no-skills` to skip the step and manage skills yourself).
 
    > **Note:** `--force-skills` also overwrites `bmad-loop-setup` itself (it ships in the same bundle). That's expected and safe — the freshly laid-down setup skill takes effect on the **next** invocation, and your `_bmad/custom/*.toml` overrides (keyed by skill directory name) are untouched.
 
@@ -134,7 +149,7 @@ Unless the user explicitly asked to skip it (e.g. `skills only` / `--no-tool`), 
 
    `validate` exits non-zero when the project isn't fully ready (e.g. no `sprint-status.yaml` yet, or `bmad-sprint-planning` hasn't run). On a fresh project that is **expected** — report its findings to the user as a readiness checklist, not as an install failure.
 
-5. **Point the user at per-role adapter config.** `--cli` in step 3 only registers _hooks_ for each CLI. Which CLI actually **runs** each stage is governed by `{project-root}/.bmad-loop/policy.toml`, written from a template by `init`. The `[adapter] name` (default `claude`) applies to every stage; optional `[adapter.dev]`, `[adapter.review]`, and `[adapter.triage]` tables override individual stages (each takes its own `name` and `extra_args`). So a mixed setup — e.g. `claude` for dev, `codex` for review — needs both the hooks registered (step 3) **and** the role pointed at that CLI in `policy.toml`:
+5. **Point the user at per-role adapter config.** `--cli` in step 3 registers the hooks and skill artifacts for each CLI; it does not choose which CLI executes a stage. Which CLI actually **runs** each stage is governed by `{project-root}/.bmad-loop/policy.toml`, written from a template by `init`. The `[adapter] name` (default `claude`) applies to every stage; optional `[adapter.dev]`, `[adapter.review]`, and `[adapter.triage]` tables override individual stages (each takes its own `name` and `extra_args`). So a mixed setup — e.g. `claude` for dev, `codex` for review — needs both the hooks/artifacts registered (step 3) **and** the roles pointed at those CLIs in `policy.toml`:
 
    ```toml
    [adapter]
@@ -144,7 +159,25 @@ Unless the user explicitly asked to skip it (e.g. `skills only` / `--no-tool`), 
    name = "codex"         # review runs on codex instead
    ```
 
-   Tell the user where the file is and that any CLI named in `policy.toml` must also have been registered with `--cli` in step 3 (re-run `bmad-loop init --cli <name>` to add one later). Leave `policy.toml` untouched if they only use a single CLI — the default is correct.
+   For an explicit Omni selection, the canonical policy mapping is Omni Claude for
+   the default execution adapter and, optionally, Omni Codex for review:
+
+   ```toml
+   [adapter]
+   name = "omni-claude"
+
+   [adapter.review]
+   name = "omni-codex"
+   ```
+
+   Preserve the existing policy by default. Only when the user explicitly selects
+   Omni, update the selected execution/review adapter names in the existing
+   `policy.toml`; preserve every unrelated policy section, key, and setting. Do not
+   replace the whole file or infer a role change from merely registering an Omni
+   profile with `--cli`. Tell the user where the file is and that any CLI named in
+   `policy.toml` must also have been registered with `--cli` in step 3 (re-run
+   `bmad-loop init --cli <name>` to add one later). Leave `policy.toml` untouched if
+   they only use a single non-Omni CLI — the default is correct.
 
 ## Confirm
 
