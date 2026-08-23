@@ -30,6 +30,7 @@ breaking changes may land in a minor release.
 
 ### Fixed
 
+- **`init` could get permanently stuck reporting a stale hook as already registered.** `merge_hooks`' dedup matched on the `bmad_loop_hook` marker alone, so a registration that already carried the marker was never rewritten — even when its command was for a *different* project. codex, gemini, copilot, and agy bake the project's absolute path into the hook command at init time (only the claude dialect's `$CLAUDE_PROJECT_DIR`-relative form is rename-proof), so a project directory moved or renamed after its first `init` left those dialects' hook files pointing at a script that no longer existed at that path — `init` kept printing "hooks already registered" and exiting 0, while any consumer checking the hook against the *current* project path (orvex-installer's `bmad-loop` phase, for one) saw it as permanently missing and could never converge. `merge_hooks` now checks for the exact current command first, and only falls back to the marker check to decide whether to replace a stale relay (never touching an unrelated probe-capture hook) versus append a fresh one.
 - **The bundled `bmad-loop-resolve` skill now passes strict skill-manifest validation.** Its invocation example no longer uses angle brackets in frontmatter, which validators reserve and reject.
 - **psmux: a hand-back that succeeded no longer reports as failed — or undoes itself (#659).**
   `switch_client` read its verdict off the session's attached-client count, which a same-session

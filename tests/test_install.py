@@ -315,6 +315,123 @@ def test_merge_hooks_antigravity_preserves_other_groups():
     assert settings["bmad-loop"]["Stop"][0]["command"].endswith("bmad_loop_hook.py Stop")
 
 
+def test_merge_hooks_replaces_stale_absolute_path():
+    # codex bakes the project's absolute path into the command at init time —
+    # unlike claude's $CLAUDE_PROJECT_DIR-relative form, a project move or
+    # rename leaves the OLD path baked into an already-registered command.
+    # RELAY_MARKER still matches it (it's still literally "bmad_loop_hook.py"),
+    # so a marker-only dedup treats it as "already registered" and never
+    # corrects it: orvex-installer's hook validator (which checks for the exact
+    # current absolute path) then reports the hook missing on every run, even
+    # though `bmad-loop init` keeps reporting success — the failure this test
+    # guards against.
+    profile = get_profile("codex")
+    stale = _registrations(
+        profile, command="python3 /old/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, changed = merge_hooks({}, stale, profile.hooks.dialect)
+    assert changed
+
+    current = _registrations(
+        profile, command="python3 /new/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, changed = merge_hooks(settings, current, profile.hooks.dialect)
+    assert changed
+    for event in profile.hooks.events:
+        commands = [
+            handler["command"]
+            for matcher in settings["hooks"][event]
+            for handler in matcher["hooks"]
+        ]
+        # replaced in place, not appended beside — exactly one relay entry
+        assert commands == [current[event]]
+
+
+def test_merge_hooks_replaces_stale_absolute_path_then_stays_idempotent():
+    profile = get_profile("codex")
+    stale = _registrations(
+        profile, command="python3 /old/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, _ = merge_hooks({}, stale, profile.hooks.dialect)
+    current = _registrations(
+        profile, command="python3 /new/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, _ = merge_hooks(settings, current, profile.hooks.dialect)
+    again, changed = merge_hooks(settings, current, profile.hooks.dialect)
+    assert not changed
+    for event in profile.hooks.events:
+        assert len(again["hooks"][event]) == 1
+
+
+def test_merge_hooks_copilot_replaces_stale_command():
+    # copilot stores the handler dict flat in the event list (the other
+    # dedup branch) — same stale-path replacement guarantee applies there.
+    profile = get_profile("copilot")
+    stale = _registrations(
+        profile, command="python3 /old/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, _ = merge_hooks({}, stale, profile.hooks.dialect)
+    current = _registrations(
+        profile, command="python3 /new/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, changed = merge_hooks(settings, current, profile.hooks.dialect)
+    assert changed
+    for event in profile.hooks.events:
+        commands = [handler["command"] for handler in settings["hooks"][event]]
+        assert commands == [current[event]]
+
+
+def test_merge_hooks_antigravity_replaces_stale_command():
+    profile = get_profile("antigravity")
+    stale = _registrations(
+        profile, command="python3 /old/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, _ = merge_hooks({}, stale, profile.hooks.dialect)
+    current = _registrations(
+        profile, command="python3 /new/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, changed = merge_hooks(settings, current, profile.hooks.dialect)
+    assert changed
+    for event in profile.hooks.events:
+        commands = [handler["command"] for handler in settings["bmad-loop"][event]]
+        assert commands == [current[event]]
+
+
+def test_merge_hooks_stale_relay_replacement_preserves_probe_hook():
+    # Replacing a stale relay must not disturb an unrelated probe-capture hook
+    # registered in the same event's handler list.
+    profile = get_profile("claude")
+    event = next(iter(profile.hooks.events))
+    canonical = profile.hooks.events[event]
+    stale_command = f"python3 /old/project/.bmad-loop/bmad_loop_hook.py {canonical}"
+    existing = {
+        "hooks": {
+            event: [
+                {"hooks": [{"type": "command", "command": stale_command}]},
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python bmad_loop_probe_hook.py " + canonical,
+                        }
+                    ]
+                },
+            ]
+        }
+    }
+    current = _registrations(
+        profile, command="python3 /new/project/.bmad-loop/bmad_loop_hook.py {event}"
+    )
+    settings, changed = merge_hooks(existing, current, profile.hooks.dialect)
+    assert changed
+    commands = [
+        handler["command"] for matcher in settings["hooks"][event] for handler in matcher["hooks"]
+    ]
+    assert current[event] in commands
+    assert any("bmad_loop_probe_hook" in c for c in commands)
+    assert stale_command not in commands
+
+
 def test_install_does_not_clobber_existing_policy(tmp_path):
     """An existing .bmad-loop/policy.toml is per-machine state: init must leave it
     alone rather than resetting it to the template."""
@@ -3747,9 +3864,9 @@ def test_shield_outranked_degrade_leaves_no_permanent_repo_format_change(
     # through the `git` helper, whose `check=True` turns git's own "no such key" into
     # an error — the rc IS the assertion here.
     wt_config = Path(git(wt, "rev-parse", "--absolute-git-dir")) / "config.worktree"
-    assert "excludesFile" in wt_config.read_text(
-        encoding="utf-8"
-    ), "the activation's key should still be on disk — this pins INERT, not removed"
+    assert "excludesFile" in wt_config.read_text(encoding="utf-8"), (
+        "the activation's key should still be on disk — this pins INERT, not removed"
+    )
     left_behind = subprocess.run(
         ["git", "-C", str(wt), "config", "--type=path", "--get", "core.excludesFile"],
         capture_output=True,

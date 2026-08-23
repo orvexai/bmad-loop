@@ -1108,6 +1108,65 @@ def _managed_hook_in_handlers(handlers) -> bool:
     return RELAY_MARKER in dumped or PROBE_MARKER in dumped
 
 
+def _relay_command_registered(handlers, command: str) -> bool:
+    """True if `command` — the exact string this init call would register — is
+    already present as some handler's "command" value in `handlers` (a
+    native-event handler list).
+
+    Distinct from :func:`_relay_in_handlers`, which only checks for the
+    RELAY_MARKER substring: an entry can carry the marker while baking a
+    DIFFERENT, stale command. codex/gemini/copilot/agy bake the project's
+    absolute path into the command at init time (only the claude dialect's
+    `$CLAUDE_PROJECT_DIR`-relative form is rename-proof), so a project moved or
+    renamed after its first `init` leaves a hooks.json entry that still matches
+    RELAY_MARKER but no longer points at a script that exists. An exact-command
+    check is what tells "already correctly registered" apart from "registered,
+    but stale" — see :func:`merge_hooks`.
+    """
+    for handler in handlers:
+        if not isinstance(handler, dict):
+            continue
+        if handler.get("command") == command:
+            return True
+        nested = handler.get("hooks")
+        if isinstance(nested, list):
+            for entry in nested:
+                if isinstance(entry, dict) and entry.get("command") == command:
+                    return True
+    return False
+
+
+def _strip_relay_from_list(handlers: list) -> tuple[list, bool]:
+    """Remove RELAY_MARKER commands from one native-event handler list, at
+    command granularity. Returns (kept, removed).
+
+    claude/codex/gemini wrap commands in a nested "hooks" list, and a user may
+    have added their own command beside the relay inside ONE matcher entry —
+    strip inside the list so theirs survives. copilot and agy store the command
+    dict flat in the event list, so a marker match means the entry IS the relay
+    and it drops whole. Shared by :func:`strip_relay_hooks` (drops every event)
+    and :func:`merge_hooks` (drops a stale relay for one event before
+    re-registering the current command).
+    """
+    kept = []
+    removed = False
+    for handler in handlers:
+        if RELAY_MARKER not in json.dumps(handler):
+            kept.append(handler)
+            continue
+        nested = handler.get("hooks") if isinstance(handler, dict) else None
+        if isinstance(nested, list):
+            surviving = [c for c in nested if RELAY_MARKER not in json.dumps(c)]
+            if surviving:
+                if len(surviving) != len(nested):
+                    handler["hooks"] = surviving
+                    removed = True
+                kept.append(handler)
+                continue
+        removed = True
+    return kept, removed
+
+
 def strip_relay_hooks(config: dict, dialect: str) -> bool:
     """Drop every relay registration from a parsed hook config. True if any went.
 
@@ -1116,8 +1175,10 @@ def strip_relay_hooks(config: dict, dialect: str) -> bool:
     the main repo's hook config (``provision_worktree``). That config already
     carries a relay command written for the main repo — `$CLAUDE_PROJECT_DIR`-relative
     for the claude dialect, which resolves inside the worktree, where no relay
-    exists. `merge_hooks` will not replace it, since `_managed_hook_in_handlers`
-    reports the event as already registered, so the stale command has to go first.
+    exists. `merge_hooks` replaces a stale relay command in place, but a worktree's
+    seeded command is not stale by that check — it is a byte-identical copy of a
+    registration that is valid for a DIFFERENT project directory — so the seeded
+    command has to go first regardless.
 
     Only RELAY_MARKER commands are removed, at command granularity: a matcher
     entry whose nested list holds a project command beside the relay keeps the
@@ -1132,26 +1193,8 @@ def strip_relay_hooks(config: dict, dialect: str) -> bool:
         handlers = container.get(native_event)
         if not isinstance(handlers, list):
             continue
-        kept = []
-        for handler in handlers:
-            if RELAY_MARKER not in json.dumps(handler):
-                kept.append(handler)
-                continue
-            # claude/codex/gemini wrap commands in a nested "hooks" list, and a
-            # user may have added their own command beside the relay inside ONE
-            # matcher entry — strip inside the list so theirs survives. copilot
-            # and agy store the command dict flat in the event list, so a marker
-            # match means the entry IS the relay and it drops whole.
-            nested = handler.get("hooks") if isinstance(handler, dict) else None
-            if isinstance(nested, list):
-                surviving = [c for c in nested if RELAY_MARKER not in json.dumps(c)]
-                if surviving:
-                    if len(surviving) != len(nested):
-                        handler["hooks"] = surviving
-                        removed = True
-                    kept.append(handler)
-                    continue
-            removed = True
+        kept, this_removed = _strip_relay_from_list(handlers)
+        removed = removed or this_removed
         if len(kept) != len(handlers):
             if kept:
                 container[native_event] = kept
@@ -1164,6 +1207,36 @@ def relay_registered(config: dict, dialect: str, events: Iterable[str]) -> bool:
     """True if the bmad-loop relay is registered for any of `events`."""
     container = hook_event_container(config, dialect)
     return any(_relay_in_handlers(container.get(event, [])) for event in events)
+
+
+def _merge_one_event(handlers: list, command: str, dialect: str) -> bool:
+    """Ensure `command` is registered in `handlers` for one native event.
+    Returns True if `handlers` changed.
+
+    Three cases, in order:
+      1. `command` is already registered verbatim — nothing to do.
+      2. A relay entry is present but for a DIFFERENT command — most often a
+         stale absolute path baked in before the project moved (codex/gemini/
+         copilot/agy bake the project path at init time; only the claude
+         dialect's `$CLAUDE_PROJECT_DIR`-relative form is rename-proof). A
+         marker match alone is not proof the registration still works, so the
+         stale entry is replaced rather than left in place — the #159 fix made
+         the marker narrow enough that "matched" now reliably means "this really
+         is our relay," which is what makes replacing it here safe.
+      3. Neither: append fresh. (A PROBE_MARKER-only match falls through to
+         "nothing to do" via case 1 already having failed and `_relay_in_handlers`
+         being False here — merge_hooks' existing rule that a probe-capture hook
+         suppresses relay registration is preserved.)
+    """
+    if _relay_command_registered(handlers, command):
+        return False
+    if _relay_in_handlers(handlers):
+        kept, _ = _strip_relay_from_list(handlers)
+        handlers[:] = kept
+    elif _managed_hook_in_handlers(handlers):
+        return False  # only a probe marker present — leave it alone
+    handlers.append(_hook_entry(dialect, command))
+    return True
 
 
 def merge_hooks(config: dict, registrations: dict[str, str], dialect: str) -> tuple[dict, bool]:
@@ -1186,8 +1259,7 @@ def merge_hooks(config: dict, registrations: dict[str, str], dialect: str) -> tu
                     f"hook event {native_event!r} under {ANTIGRAVITY_HOOK_GROUP!r} "
                     "is not a list; fix the hooks file before re-running init"
                 )
-            if not _managed_hook_in_handlers(handlers):
-                handlers.append(_hook_entry(dialect, command))
+            if _merge_one_event(handlers, command, dialect):
                 changed = True
         return config, changed
     if dialect == "copilot-settings-json":
@@ -1196,10 +1268,9 @@ def merge_hooks(config: dict, registrations: dict[str, str], dialect: str) -> tu
     for native_event, command in registrations.items():
         matchers = hooks.setdefault(native_event, [])
         # claude/codex/gemini nest handlers under "hooks"; copilot stores the
-        # handler dict directly in the event list — the serialized scan covers
-        # both shapes so a re-run stays idempotent for every dialect.
-        if not _managed_hook_in_handlers(matchers):
-            matchers.append(_hook_entry(dialect, command))
+        # handler dict directly in the event list — _merge_one_event's scan
+        # covers both shapes so a re-run stays idempotent for every dialect.
+        if _merge_one_event(matchers, command, dialect):
             changed = True
     return config, changed
 
