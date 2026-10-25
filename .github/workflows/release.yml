@@ -8,8 +8,7 @@ name: Release
 on:
   push:
     tags:
-    - '**'
-
+      - '**'
 concurrency:
   # Deliberately ref-independent: `main` and a `release/*` branch can carry the
   # same version, and keying on `github.ref` would put them in separate groups and
