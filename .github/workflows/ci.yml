@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main, release/*]
+    tags:
+    - '**'
   pull_request:
 
 # Cancel superseded runs for the same ref.

@@ -7,7 +7,8 @@ name: Release
 # whichever branch carries a given version first wins the tag.
 on:
   push:
-    branches: [main, release/*]
+    tags:
+    - '**'
 
 concurrency:
   # Deliberately ref-independent: `main` and a `release/*` branch can carry the
